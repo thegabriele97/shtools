@@ -11,9 +11,9 @@ NC='\033[0m'
 # ── available scripts ──────────────────────────────────────────────────────────
 # format: "filename.sh|command-name"
 SCRIPTS=(
-  # "compress-video.sh|compress-video"
-  # "compress-images.sh|compress-images"
-  # "organize-files.sh|organize-files"
+  "compress-video.sh|compress-video"
+  "compress-images.sh|compress-images"
+  "organize-files.sh|organize-files"
   "find-hardlinks.sh|find-hardlinks"
 )
 
@@ -50,6 +50,7 @@ if [[ "$1" == "--preview" ]]; then
   usage=$(get_meta "$FILE" "usage")
   example=$(get_meta "$FILE" "example")
   deps=$(get_meta "$FILE" "deps")
+  presets=$(get_meta "$FILE" "preset")
   echo ""
   echo "  📄 $NAME"
   echo "  ──────────────────────────────"
@@ -58,6 +59,11 @@ if [[ "$1" == "--preview" ]]; then
   [[ -n "$usage" ]]   && echo "  USAGE"        && echo "  tools $usage"   && echo ""
   [[ -n "$example" ]] && echo "  EXAMPLE"      && echo "  tools $example" && echo ""
   [[ -n "$deps" ]]    && echo "  DEPENDENCIES" && echo "  $deps"          && echo ""
+  if [[ -n "$presets" ]]; then
+    echo "  PRESETS"
+    echo "$presets" | while IFS= read -r line; do echo "  $line"; done
+    echo ""
+  fi
   exit 0
 fi
 
