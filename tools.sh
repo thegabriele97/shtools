@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE_URL="https://raw.githubusercontent.com/thegabriele97/tools/main/scripts"
+BASE_URL="https://raw.githubusercontent.com/thegabriele97/shtools/refs/heads/main/scripts"
 
 RED='\033[0;31m'
 CYAN='\033[0;36m'
