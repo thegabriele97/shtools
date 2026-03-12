@@ -158,7 +158,7 @@ if [[ ${#ARGS[@]} -gt 0 ]]; then
       label="${arg//[<>]/}"
       echo -ne "  $arg  ${CYAN}$label${NC}: "
     fi
-    read -e -r val
+    read -e val
     [[ -n "$val" ]] && PARAMS+=("$val")
   done
   echo ""
