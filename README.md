@@ -2,6 +2,9 @@
 
 A collection of personal utility scripts, always at hand on any machine.
 
+![Made with VHS](docs/demo.gif)
+
+
 ## Quick start
 
 Add this alias to your `.bashrc` or `.zshrc`:
