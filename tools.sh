@@ -16,6 +16,7 @@ SCRIPTS=(
   "organize-files.sh|organize-files"
   "find-hardlinks.sh|find-hardlinks"
   "copy-exif.sh|copy-exif"
+  "nextcloud-upload.sh|nextcloud-upload"
 )
 
 # ── helpers ────────────────────────────────────────────────────────────────────
