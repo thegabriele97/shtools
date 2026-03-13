@@ -66,7 +66,7 @@ FAIL=0
 for conv_file in "${FILES[@]}"; do
   base=$(basename "$conv_file")
   base_noext="${base%.*}"
-  original=$(find "$ORIGINAL_DIR" -maxdepth 1 -iname "${base_noext}.*" ! -iname "$base" | head -n 1)
+  original=$(find "$ORIGINAL_DIR" -maxdepth 1 -iname "${base_noext}.*" | head -n 1)
 
   if [[ -z "$original" ]]; then
     echo -e "  ${YELLOW}⚠${NC}  ${BOLD}$base${NC}"
