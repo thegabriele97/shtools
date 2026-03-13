@@ -16,6 +16,8 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
+MAX_TIME=1800  # max 30 minutes for SSIM calculation (for long videos, to save time and avoid OOM)
+
 # ── check deps ────────────────────────────────────────────────────────────────
 
 if ! command -v ffmpeg &>/dev/null; then
@@ -136,7 +138,7 @@ for file in "${FILES[@]}"; do
     new_size=$(du -sh "$output" 2>/dev/null | cut -f1)
 
     # compute SSIM between original and compressed
-    ssim_raw=$(ffmpeg -i "$file" -i "$output"       -lavfi ssim       -f null - 2>&1 | grep "SSIM" | grep -oP "All:\K[0-9.]+" | tail -1)
+    ssim_raw=$(ffmpeg -t $MAX_TIME -i "$file" -t $MAX_TIME -i "$output" -lavfi ssim -f null - 2>&1 | grep "SSIM" | grep -oP "All:\K[0-9.]+" | tail -1)
 
     if [[ -n "$ssim_raw" ]]; then
       # color code: green ≥0.98, yellow ≥0.95, red <0.95
