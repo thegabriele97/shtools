@@ -15,6 +15,7 @@ SCRIPTS=(
   "compress-images.sh|compress-images"
   "organize-files.sh|organize-files"
   "find-hardlinks.sh|find-hardlinks"
+  "copy-exif.sh|copy-exif"
 )
 
 # ── helpers ────────────────────────────────────────────────────────────────────
