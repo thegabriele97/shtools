@@ -154,12 +154,12 @@ if [[ ${#ARGS[@]} -gt 0 ]]; then
   for arg in "${ARGS[@]}"; do
     if [[ "$arg" == \[* ]]; then
       label="${arg//[\[\]]/}"
-      echo -ne "  ${DIM}$arg${NC}  ${CYAN}$label${NC} (enter to skip): "
+      prompt=$(printf "  \033[2m$arg\033[0m  \001\033[0;36m\002$label\001\033[0m\002 (enter to skip): ")
     else
       label="${arg//[<>]/}"
-      echo -ne "  $arg  ${CYAN}$label${NC}: "
+      prompt=$(printf "  $arg  \001\033[0;36m\002$label\001\033[0m\002: ")
     fi
-    read -e val
+    read -e -p "$prompt" val
     [[ -n "$val" ]] && PARAMS+=("$val")
   done
   echo ""
