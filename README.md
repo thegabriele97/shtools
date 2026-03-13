@@ -7,7 +7,7 @@ A collection of personal utility scripts, always at hand on any machine.
 Add this alias to your `.bashrc` or `.zshrc`:
 
 ```bash
-alias tools='curl -sL https://raw.githubusercontent.com/thegabriele97/shtools/main/tools.sh -o /tmp/tools.sh && bash /tmp/tools.sh'
+alias tools='curl -Ls https://raw.githubusercontent.com/thegabriele97/shtools/main/launcher.sh | bash -s --'
 ```
 
 Then run:
