@@ -17,6 +17,7 @@ SCRIPTS=(
   "find-hardlinks.sh|find-hardlinks"
   "copy-exif.sh|copy-exif"
   "nextcloud-upload.sh|nextcloud-upload"
+  "compress-video-sample-compare.sh|compress-video-sample-compare"
 )
 
 # ── helpers ────────────────────────────────────────────────────────────────────
