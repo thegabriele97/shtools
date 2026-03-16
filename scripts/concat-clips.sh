@@ -75,54 +75,99 @@ if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
   exit 0
 fi
 
-# ── A — inspect FPS ───────────────────────────────────────────────────────────
+# ── A — inspect FPS + resolution + audio offset ───────────────────────────────
 
 echo ""
 echo -e "  $(printf '─%.0s' {1..60})"
 echo ""
-echo -e "  ${BOLD}A — FPS check${NC}"
+echo -e "  ${BOLD}A — clip inspection${NC}"
 echo ""
 
 declare -A CLIP_FPS
-ALL_SAME=true
+declare -A CLIP_RES
+declare -A CLIP_AUDIO_OFFSET
+ALL_FPS_SAME=true
+ALL_RES_SAME=true
 FIRST_FPS=""
+FIRST_RES=""
 
 for clip in "${CLIPS[@]}"; do
   name=$(basename "$clip")
+
   fps=$(ffprobe -v error -show_entries stream=r_frame_rate \
+    -select_streams v:0 \
     -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null | head -1)
-  # simplify fraction if possible (e.g. 60/1 → 60, 30000/1001 → 29.97)
   fps_display=$(echo "$fps" | awk -F'/' '{if($2==1) print $1; else printf "%.2f", $1/$2}')
   CLIP_FPS["$clip"]="$fps"
+
+  width=$(ffprobe -v error -show_entries stream=width \
+    -select_streams v:0 \
+    -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null)
+  height=$(ffprobe -v error -show_entries stream=height \
+    -select_streams v:0 \
+    -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null)
+  res="${width}x${height}"
+  CLIP_RES["$clip"]="$res"
+
+  audio_pts=$(ffprobe -v error -show_entries stream=start_pts \
+    -select_streams a:0 \
+    -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null)
+  audio_start=$(ffprobe -v error -show_entries stream=start_time \
+    -select_streams a:0 \
+    -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null)
+  CLIP_AUDIO_OFFSET["$clip"]="$audio_pts"
 
   if [[ -z "$FIRST_FPS" ]]; then
     FIRST_FPS="$fps"
   elif [[ "$fps" != "$FIRST_FPS" ]]; then
-    ALL_SAME=false
+    ALL_FPS_SAME=false
   fi
 
-  # check if fps is a clean integer
+  if [[ -z "$FIRST_RES" ]]; then
+    FIRST_RES="$res"
+  elif [[ "$res" != "$FIRST_RES" ]]; then
+    ALL_RES_SAME=false
+  fi
+
+  # fps color
   denom=$(echo "$fps" | cut -d'/' -f2)
   if [[ "$denom" != "1" && "$denom" != "" ]]; then
-    echo -e "  ${YELLOW}⚠${NC}  ${BOLD}$name${NC}  ${DIM}fps: $fps_display (${fps})${NC}"
+    fps_label="${YELLOW}fps: $fps_display ($fps)${NC}"
   else
-    echo -e "  ${GREEN}✓${NC}  ${BOLD}$name${NC}  ${DIM}fps: $fps_display${NC}"
+    fps_label="${GREEN}fps: $fps_display${NC}"
   fi
+
+  # resolution color (compare against first seen)
+  if [[ "$res" == "$FIRST_RES" ]]; then
+    res_label="${GREEN}res: $res${NC}"
+  else
+    res_label="${YELLOW}res: $res${NC}"
+  fi
+
+  # audio offset color
+  if [[ "$audio_pts" == "0" || -z "$audio_pts" ]]; then
+    offset_label="${GREEN}audio start_pts: ${audio_pts:-0}${NC}"
+  else
+    offset_label="${YELLOW}audio start_pts: $audio_pts (${audio_start}s)${NC}"
+  fi
+
+  echo -e "  ${BOLD}$name${NC}"
+  echo -e "    ${fps_label}   ${res_label}   ${offset_label}"
+  echo ""
 done
 
-echo ""
-
+# summary
 NEED_CLEAN=false
 
-if [[ "$ALL_SAME" == true ]]; then
+if [[ "$ALL_FPS_SAME" == true ]]; then
   fps_display=$(echo "$FIRST_FPS" | awk -F'/' '{if($2==1) print $1; else printf "%.2f", $1/$2}')
-  echo -e "  ${GREEN}✓ all clips have the same FPS ($fps_display) — normalization not needed${NC}"
+  echo -e "  ${GREEN}✓ FPS uniform ($fps_display)${NC}"
 else
-  echo -e "  ${YELLOW}⚠ clips have different or irregular FPS — normalization recommended${NC}"
+  echo -e "  ${YELLOW}⚠ FPS non-uniform — normalization needed${NC}"
   NEED_CLEAN=true
 fi
 
-# also check for irregular framerates (non-integer denominator)
+# check irregular framerates
 for clip in "${CLIPS[@]}"; do
   fps="${CLIP_FPS[$clip]}"
   denom=$(echo "$fps" | cut -d'/' -f2)
@@ -132,23 +177,39 @@ for clip in "${CLIPS[@]}"; do
   fi
 done
 
+if [[ "$ALL_RES_SAME" == true ]]; then
+  echo -e "  ${GREEN}✓ resolution uniform ($FIRST_RES)${NC}"
+else
+  echo -e "  ${YELLOW}⚠ resolution non-uniform — normalization needed${NC}"
+  NEED_CLEAN=true
+fi
+
+echo ""
+
 if [[ "$NEED_CLEAN" == true ]]; then
-  echo ""
-  # detect target fps from most common value
+  # target FPS = most common
   TARGET_FPS=$(for clip in "${CLIPS[@]}"; do
     echo "${CLIP_FPS[$clip]}" | awk -F'/' '{if($2==1) print $1; else printf "%.0f", $1/$2}'
   done | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
 
-  echo -e "  ${DIM}target fps for normalization: ${TARGET_FPS}${NC}"
+  # target resolution = most common
+  TARGET_RES=$(for clip in "${CLIPS[@]}"; do
+    echo "${CLIP_RES[$clip]}"
+  done | sort | uniq -c | sort -rn | head -1 | awk '{print $2}')
+  TARGET_W=$(echo "$TARGET_RES" | cut -d'x' -f1)
+  TARGET_H=$(echo "$TARGET_RES" | cut -d'x' -f2)
+
+  echo -e "  ${DIM}target fps:        ${TARGET_FPS}${NC}"
+  echo -e "  ${DIM}target resolution: ${TARGET_RES}${NC}"
   echo ""
-  read -e -p "  $(printf "\033[0;36m")normalize all clips to ${TARGET_FPS}fps? [y/N]$(printf "\033[0m") " confirm
+  read -e -p "  $(printf "\033[0;36m")normalize all clips to ${TARGET_FPS}fps / ${TARGET_RES}? [y/N]$(printf "\033[0m") " confirm
   if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     echo -e "\n  ${YELLOW}skipping normalization — concat may produce issues${NC}\n"
     NEED_CLEAN=false
   fi
 fi
 
-# ── B — normalize FPS ─────────────────────────────────────────────────────────
+# ── B — normalize ─────────────────────────────────────────────────────────────
 
 CLEANED_DIR="$CLIPS_DIR/cleaned"
 SOURCE_CLIPS=("${CLIPS[@]}")
@@ -171,39 +232,29 @@ if [[ "$NEED_CLEAN" == true ]]; then
     ffmpeg -y \
       -fflags +discardcorrupt \
       -i "$clip" \
+      -vf "scale=${TARGET_W}:${TARGET_H}:flags=lanczos" \
       -c:v libx264 -crf 14 -preset veryfast \
+      -r "$TARGET_FPS" -vsync cfr \
       -c:a aac -b:a 192k \
-      -vsync cfr \
-      -r "$TARGET_FPS" \
+      -af aresample=async=1000 \
       "$out" \
       -loglevel error -stats 2>&1
 
     if [[ $? -eq 0 ]]; then
       fps_out=$(ffprobe -v error -show_entries stream=r_frame_rate \
+        -select_streams v:0 \
         -of default=noprint_wrappers=1:nokey=1 "$out" 2>/dev/null | head -1)
       fps_display=$(echo "$fps_out" | awk -F'/' '{if($2==1) print $1; else printf "%.2f", $1/$2}')
-      echo -e "  ${GREEN}✓${NC} ${DIM}fps: $fps_display  ↳ $out${NC}"
+      res_out=$(ffprobe -v error -show_entries stream=width,height \
+        -select_streams v:0 \
+        -of default=noprint_wrappers=1:nokey=1 "$out" 2>/dev/null \
+        | tr '\n' 'x' | sed 's/x$//')
+      echo -e "  ${GREEN}✓${NC} ${DIM}fps: $fps_display  res: $res_out  ↳ $out${NC}"
       CLEAN_CLIPS+=("$out")
     else
       echo -e "  ${RED}✗ failed${NC}"
     fi
     echo ""
-  done
-
-  # verify all cleaned clips have uniform fps
-  echo -e "  ${BOLD}FPS after normalization:${NC}"
-  echo ""
-  for clip in "${CLEAN_CLIPS[@]}"; do
-    name=$(basename "$clip")
-    fps=$(ffprobe -v error -show_entries stream=r_frame_rate \
-      -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null | head -1)
-    fps_display=$(echo "$fps" | awk -F'/' '{if($2==1) print $1; else printf "%.2f", $1/$2}')
-    denom=$(echo "$fps" | cut -d'/' -f2)
-    if [[ "$denom" == "1" ]]; then
-      echo -e "  ${GREEN}✓${NC}  ${BOLD}$name${NC}  ${DIM}$fps_display${NC}"
-    else
-      echo -e "  ${YELLOW}⚠${NC}  ${BOLD}$name${NC}  ${DIM}$fps_display ($fps)${NC}"
-    fi
   done
 
   SOURCE_CLIPS=("${CLEAN_CLIPS[@]}")
@@ -217,19 +268,26 @@ echo ""
 echo -e "  ${BOLD}C — concat${NC}"
 echo ""
 
-FILELIST=$(mktemp /tmp/concat_XXXXXX.txt)
-for clip in "${SOURCE_CLIPS[@]}"; do
-  echo "file '$clip'" >> "$FILELIST"
+N=${#SOURCE_CLIPS[@]}
+
+# build -i inputs and filter_complex dynamically
+INPUTS=()
+FILTER=""
+for i in "${!SOURCE_CLIPS[@]}"; do
+  INPUTS+=(-i "${SOURCE_CLIPS[$i]}")
+  FILTER+="[${i}:v][${i}:a]"
 done
+FILTER+="concat=n=${N}:v=1:a=1[v][a]"
 
 ffmpeg -y \
-  -f concat -safe 0 -i "$FILELIST" \
-  -c copy \
+  "${INPUTS[@]}" \
+  -filter_complex "$FILTER" \
+  -map "[v]" -map "[a]" \
+  -c:v libx264 -crf 14 -preset veryfast \
+  -c:a aac -b:a 192k \
   -movflags +faststart \
   "$OUTPUT_FILE" \
   -loglevel error -stats 2>&1
-
-rm -f "$FILELIST"
 
 if [[ $? -ne 0 ]]; then
   echo -e "\n  ${RED}✗ concat failed${NC}\n"
