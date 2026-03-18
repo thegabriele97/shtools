@@ -12,6 +12,19 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+fmt_ts() {
+  # formats seconds (float) as 1h2m5s / 2m5s / 47s
+  echo "$1" | awk '{
+    t=int($1)
+    h=int(t/3600); m=int((t%3600)/60); s=t%60
+    if (h>0) printf "%dh%dm%ds", h, m, s
+    else if (m>0) printf "%dm%ds", m, s
+    else printf "%ds", s
+  }'
+}
+
 # ── check deps ────────────────────────────────────────────────────────────────
 
 for cmd in ffmpeg ffprobe; do
@@ -233,7 +246,7 @@ if [[ "$NEED_CLEAN" == true ]]; then
       -fflags +discardcorrupt \
       -i "$clip" \
       -vf "scale=${TARGET_W}:${TARGET_H}:flags=lanczos" \
-      -c:v libx264 -crf 14 -preset veryfast \
+      -c:v libx264 -crf 1 -preset veryfast \
       -r "$TARGET_FPS" -vsync cfr \
       -c:a aac -b:a 192k \
       -af aresample=async=1000 \
@@ -270,7 +283,6 @@ echo ""
 
 N=${#SOURCE_CLIPS[@]}
 
-# build -i inputs and filter_complex dynamically
 INPUTS=()
 FILTER=""
 for i in "${!SOURCE_CLIPS[@]}"; do
@@ -283,7 +295,7 @@ ffmpeg -y \
   "${INPUTS[@]}" \
   -filter_complex "$FILTER" \
   -map "[v]" -map "[a]" \
-  -c:v libx264 -crf 14 -preset veryfast \
+  -c:v libx264 -crf 10 -preset fast \
   -c:a aac -b:a 192k \
   -movflags +faststart \
   "$OUTPUT_FILE" \
@@ -294,7 +306,7 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-# ── D — final verification ────────────────────────────────────────────────────
+# ── D — metadata verification ─────────────────────────────────────────────────
 
 echo ""
 echo -e "  $(printf '─%.0s' {1..60})"
@@ -322,7 +334,6 @@ SIZE=$(du -sh "$OUTPUT_FILE" 2>/dev/null | cut -f1)
 
 fps_display=$(echo "$FPS_OUT" | awk -F'/' '{if($2==1) print $1; else printf "%.2f", $1/$2}')
 
-# duration diff
 DUR_DIFF=$(echo "$VIDEO_DUR $AUDIO_DUR" | awk '{d=$1-$2; if(d<0)d=-d; printf "%.2f", d}')
 DUR_OK=$(echo "$DUR_DIFF" | awk '{print ($1 < 1.0) ? "yes" : "no"}')
 
@@ -331,13 +342,152 @@ echo -e "  ${DIM}size:        $SIZE${NC}"
 echo -e "  ${DIM}codec:       $CODEC_OUT${NC}"
 echo -e "  ${DIM}resolution:  $RESOLUTION${NC}"
 echo -e "  ${DIM}fps:         $fps_display${NC}"
-echo -e "  ${DIM}video dur:   $(echo "$VIDEO_DUR" | awk '{printf "%.2fs", $1}')${NC}"
-echo -e "  ${DIM}audio dur:   $(echo "$AUDIO_DUR" | awk '{printf "%.2fs", $1}')${NC}"
+echo -e "  ${DIM}video dur:   $(fmt_ts "$VIDEO_DUR")${NC}"
+echo -e "  ${DIM}audio dur:   $(fmt_ts "$AUDIO_DUR")${NC}"
 
 if [[ "$DUR_OK" == "yes" ]]; then
   echo -e "  ${GREEN}✓${NC} ${DIM}a/v diff:    ${DUR_DIFF}s — ok${NC}"
 else
   echo -e "  ${RED}✗${NC} ${DIM}a/v diff:    ${DUR_DIFF}s — audio and video are out of sync${NC}"
+fi
+
+# ── E — clip-by-clip sync verification ───────────────────────────────────────
+
+echo ""
+echo -e "  $(printf '─%.0s' {1..60})"
+echo ""
+echo -e "  ${BOLD}E — clip sync verification${NC}"
+echo ""
+
+TMPDIR_VERIFY=$(mktemp -d /tmp/verify_concat_XXXXXX)
+trap "rm -rf $TMPDIR_VERIFY" EXIT
+
+OFFSET=0
+ALL_SYNC_OK=true
+
+for i in "${!SOURCE_CLIPS[@]}"; do
+  clip="${SOURCE_CLIPS[$i]}"
+  name=$(basename "$clip")
+
+  echo -e "  ${BOLD}clip $((i+1)) — $name${NC}"
+
+  dur=$(ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 "$clip" 2>/dev/null)
+
+  if [[ -z "$dur" || "$dur" == "N/A" ]]; then
+    echo -e "  ${YELLOW}⚠ could not read duration, skipping${NC}"
+    echo ""
+    continue
+  fi
+
+  # random timestamp between 50% and 90% of clip duration
+  T=$(echo "$dur" | awk '{srand(); min=$1*0.50; max=$1*0.90; printf "%.2f", min+rand()*(max-min)}')
+  T_MID=$(echo "$T" | awk '{printf "%.2f", $1+2.5}')
+  T_OUT=$(echo "$OFFSET $T" | awk '{printf "%.2f", $1+$2}')
+  T_OUT_MID=$(echo "$T_OUT" | awk '{printf "%.2f", $1+2.5}')
+
+  echo -e "  ${DIM}clip timestamp:    $(fmt_ts "$T")  (midpoint: $(fmt_ts "$T_MID"))${NC}"
+  echo -e "  ${DIM}output timestamp:  $(fmt_ts "$T_OUT")  (midpoint: $(fmt_ts "$T_OUT_MID"))${NC}"
+
+  # extract audio segments
+  SRC_WAV="$TMPDIR_VERIFY/src_${i}.wav"
+  OUT_WAV="$TMPDIR_VERIFY/out_${i}.wav"
+
+  ffmpeg -y -ss "$T" -t 5 -i "$clip" \
+    -vn -acodec pcm_s16le -ar 44100 -ac 1 \
+    "$SRC_WAV" -loglevel error 2>&1
+
+  ffmpeg -y -ss "$T_OUT" -t 5 -i "$OUTPUT_FILE" \
+    -vn -acodec pcm_s16le -ar 44100 -ac 1 \
+    "$OUT_WAV" -loglevel error 2>&1
+
+  # audio RMS diff
+  RMS_SRC=$(ffmpeg -i "$SRC_WAV" -af astats -f null - 2>&1 \
+    | grep "RMS level" | head -1 | awk '{print $NF}')
+  RMS_OUT=$(ffmpeg -i "$OUT_WAV" -af astats -f null - 2>&1 \
+    | grep "RMS level" | head -1 | awk '{print $NF}')
+
+  AUDIO_DIFF=$(echo "$RMS_SRC $RMS_OUT" | awk '{d=$1-$2; if(d<0)d=-d; printf "%.2f", d}')
+  AUDIO_OK=$(echo "$AUDIO_DIFF" | awk '{print ($1 < 2.0) ? "yes" : "no"}')
+
+  if [[ "$AUDIO_OK" == "yes" ]]; then
+    echo -e "  ${GREEN}✓${NC} ${DIM}audio RMS diff: ${AUDIO_DIFF} dB — ok${NC}"
+  else
+    echo -e "  ${RED}✗${NC} ${DIM}audio RMS diff: ${AUDIO_DIFF} dB — mismatch${NC}"
+    ALL_SYNC_OK=false
+  fi
+
+  # extract video frames at midpoint
+  SRC_FRAME="$TMPDIR_VERIFY/src_${i}.png"
+  OUT_FRAME="$TMPDIR_VERIFY/out_${i}.png"
+
+  ffmpeg -y -ss "$T_MID" -i "$clip" \
+    -frames:v 1 "$SRC_FRAME" -loglevel error 2>&1
+
+  ffmpeg -y -ss "$T_OUT_MID" -i "$OUTPUT_FILE" \
+    -frames:v 1 "$OUT_FRAME" -loglevel error 2>&1
+
+  # video SSIM
+  SSIM=$(ffmpeg -y \
+    -i "$SRC_FRAME" -i "$OUT_FRAME" \
+    -filter_complex "[0:v][1:v]ssim" \
+    -f null - 2>&1 | grep "SSIM" | grep -oP 'All:\K[0-9.]+')
+
+  # fallback: scale both to same resolution first
+  if [[ -z "$SSIM" ]]; then
+    SSIM=$(ffmpeg -y \
+      -i "$SRC_FRAME" -i "$OUT_FRAME" \
+      -filter_complex "[0:v]scale=1280:720[a];[1:v]scale=1280:720[b];[a][b]ssim" \
+      -f null - 2>&1 | grep "SSIM" | grep -oP 'All:\K[0-9.]+')
+  fi
+
+  SSIM_OK=$(echo "$SSIM" | awk '{print ($1 >= 0.80) ? "yes" : "no"}')
+
+  if [[ "$SSIM_OK" == "yes" ]]; then
+    echo -e "  ${GREEN}✓${NC} ${DIM}video SSIM:     ${SSIM} — ok${NC}"
+  else
+    echo -e "  ${RED}✗${NC} ${DIM}video SSIM:     ${SSIM:-N/A} — mismatch${NC}"
+    ALL_SYNC_OK=false
+  fi
+
+  # ── extract compare clips on any failure ─────────────────────────────────
+
+  if [[ "$AUDIO_OK" != "yes" || "$SSIM_OK" != "yes" ]]; then
+    COMPARE_DIR="$(dirname "$OUTPUT_FILE")/compare"
+    mkdir -p "$COMPARE_DIR"
+
+    stem="${name%.*}"
+    T_LABEL=$(fmt_ts "$T")
+    T_OUT_LABEL=$(fmt_ts "$T_OUT")
+
+    SRC_CMP="$COMPARE_DIR/clip$((i+1))_${stem}_src_${T_LABEL}.mp4"
+    OUT_CMP="$COMPARE_DIR/clip$((i+1))_${stem}_out_${T_OUT_LABEL}.mp4"
+
+    ffmpeg -y -ss "$T" -t 5 -i "$clip" \
+      -c copy "$SRC_CMP" -loglevel error 2>&1
+
+    ffmpeg -y -ss "$T_OUT" -t 5 -i "$OUTPUT_FILE" \
+      -c copy "$OUT_CMP" -loglevel error 2>&1
+
+    echo ""
+    echo -e "  ${YELLOW}↳ compare clips saved:${NC}"
+    echo -e "    ${DIM}src: $SRC_CMP${NC}"
+    echo -e "    ${DIM}out: $OUT_CMP${NC}"
+  fi
+
+  echo ""
+
+  OFFSET=$(echo "$OFFSET $dur" | awk '{printf "%.2f", $1+$2}')
+done
+
+# ── summary ───────────────────────────────────────────────────────────────────
+
+echo -e "  $(printf '─%.0s' {1..60})"
+echo ""
+if [[ "$ALL_SYNC_OK" == "true" ]]; then
+  echo -e "  ${GREEN}✓ all clips verified — output looks correct${NC}"
+else
+  echo -e "  ${RED}✗ some clips failed verification — check output manually${NC}"
 fi
 
 echo ""
