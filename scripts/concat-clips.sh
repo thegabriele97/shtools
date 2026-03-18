@@ -12,6 +12,8 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
+export LC_NUMERIC=C # ensure consistent decimal point for awk across locales
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 fmt_ts() {
@@ -246,7 +248,7 @@ if [[ "$NEED_CLEAN" == true ]]; then
       -fflags +discardcorrupt \
       -i "$clip" \
       -vf "scale=${TARGET_W}:${TARGET_H}:flags=lanczos" \
-      -c:v libx264 -crf 1 -preset veryfast \
+      -c:v libx264 -crf 1 -preset medium \
       -r "$TARGET_FPS" -vsync cfr \
       -c:a aac -b:a 192k \
       -af aresample=async=1000 \
@@ -295,7 +297,7 @@ ffmpeg -y \
   "${INPUTS[@]}" \
   -filter_complex "$FILTER" \
   -map "[v]" -map "[a]" \
-  -c:v libx264 -crf 10 -preset fast \
+  -c:v libx264 -crf 10 -preset slow \
   -c:a aac -b:a 192k \
   -movflags +faststart \
   "$OUTPUT_FILE" \
