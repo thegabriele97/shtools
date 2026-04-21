@@ -38,14 +38,14 @@ fi
 
 # ── extract token and build webdav base ───────────────────────────────────────
 
-TOKEN=$(echo "$SHARE_URL" | grep -oP '/s/\K[^/]+')
+TOKEN=$(echo "$SHARE_URL" | sed 's|.*/s/||; s|/.*||')
 if [[ -z "$TOKEN" ]]; then
   echo -e "\n  ${RED}✗ could not extract share token from URL${NC}\n"
   echo -e "  ${DIM}expected format: https://cloud.example.com/s/abc123${NC}\n"
   exit 1
 fi
 
-INSTANCE=$(echo "$SHARE_URL" | grep -oP 'https?://[^/]+')
+INSTANCE=$(echo "$SHARE_URL" | sed 's|\(https\?://[^/]*\).*|\1|')
 WEBDAV_BASE="$INSTANCE/public.php/dav/files/$TOKEN"
 
 # ── check if share is password protected ─────────────────────────────────────
