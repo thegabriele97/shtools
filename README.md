@@ -1,11 +1,17 @@
-# shtools
+# 🛠️ shtools
 
-A collection of personal utility scripts, always at hand on any machine.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Bash](https://img.shields.io/badge/Shell_Script-121011?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-blue)](https://github.com)
+[![Status](https://img.shields.io/badge/Status-Active-green)](#)
+
+A collection of personal utility scripts for media processing and file management — always at hand on any machine.
 
 ![Made with VHS](docs/demo.gif)
 
+---
 
-## Quick start
+## ⚡ Quick Start
 
 Add this alias to your `.bashrc` or `.zshrc`:
 
@@ -21,9 +27,11 @@ tools
 
 This opens an interactive TUI where you can browse all available scripts, read their description, usage, and examples — and run them directly.
 
-> **Requires:** `fzf` — if missing, the script will tell you exactly how to install it.
+> **Optional:** `fzf` enables a modern, fast interactive interface. If not available, the script automatically falls back to a minimal menu-based interface.
 
-## Usage
+---
+
+## 📖 Usage
 
 **Interactive mode** — browse and run scripts via TUI:
 ```bash
@@ -35,11 +43,31 @@ tools
 tools <command> [args...]
 ```
 
-## Available scripts
+---
 
-| Command | Description |
-|---|---|
-| `find-hardlinks` | Search for files in a path and check if they have a hard link in a second path (inode-based) |
+## 📦 Available Scripts
+
+### Media Compression
+
+| Command | Description | Dependencies |
+|---------|-------------|---|
+| `compress-images` | Compress images to WebP preserving folder structure | `cwebp`, `parallel` |
+| `compress-video` | Compress video files in a folder while preserving all metadata | `ffmpeg` |
+| `compress-video-sample-compare` | Generate compressed clips at different CRF values for visual comparison | `ffmpeg` |
+
+### Media Processing
+
+| Command | Description | Dependencies |
+|---------|-------------|---|
+| `concat-clips` | Inspect, normalize and concatenate video clips into a single file | `ffmpeg`, `ffprobe` |
+| `copy-exif` | Copy EXIF metadata (dates, GPS, camera info) from originals to converted images | `exiftool` |
+
+### File Management
+
+| Command | Description | Dependencies |
+|---------|-------------|---|
+| `find-hardlinks` | Search for files in a path and check if they have a hard link in a second path (inode-based) | `find`, `ls` |
+| `nextcloud-upload` | Upload a file or folder to a Nextcloud public share via WebDAV | `curl` |
 
 ## Adding a new script
 
@@ -71,7 +99,7 @@ Clone the repo and run `tools` from inside it — it will automatically prefer l
 ```bash
 git clone https://github.com/thegabriele97/shtools
 cd shtools
-tools
+bash tools.sh
 ```
 
 ## How it works
