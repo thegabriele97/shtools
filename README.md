@@ -1,3 +1,6 @@
+
+<div align="center">
+
 # 🛠️ shtools
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -8,6 +11,8 @@
 A collection of personal utility scripts for media processing and file management — always at hand on any machine.
 
 ![Made with VHS](docs/demo.gif)
+
+</div>
 
 ---
 
