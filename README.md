@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bash](https://img.shields.io/badge/Shell_Script-121011?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-blue)](https://github.com)
+[![Platform](https://img.shields.io/badge/Platform-Linux-blue)](https://github.com)
 [![Status](https://img.shields.io/badge/Status-Active-green)](#)
 
 A collection of personal utility scripts for media processing and file management — always at hand on any machine.
