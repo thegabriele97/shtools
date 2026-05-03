@@ -19,6 +19,7 @@ SCRIPTS=(
   "nextcloud-upload.sh|nextcloud-upload"
   "compress-video-sample-compare.sh|compress-video-sample-compare"
   "concat-clips.sh|concat-clips"
+  "disk-health.sh|disk-health"
 )
 
 # ── helpers ────────────────────────────────────────────────────────────────────

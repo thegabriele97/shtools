@@ -74,6 +74,12 @@ tools <command> [args...]
 | `find-hardlinks` | Search for files in a path and check if they have a hard link in a second path (inode-based) | `find`, `ls` |
 | `nextcloud-upload` | Upload a file or folder to a Nextcloud public share via WebDAV | `curl` |
 
+### System Administration
+| Command | Description | Dependencies |
+|---------|-------------|---|
+| `disk-health` | Check disk health using SMART data and alert if any issues are detected | `smartctl` |
+
+
 ## Adding a new script
 
 1. Create your script in `scripts/` with the standard header:
