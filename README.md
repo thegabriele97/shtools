@@ -73,6 +73,7 @@ tools <command> [args...]
 |---------|-------------|---|
 | `find-hardlinks` | Search for files in a path and check if they have a hard link in a second path (inode-based) | `find`, `ls` |
 | `nextcloud-upload` | Upload a file or folder to a Nextcloud public share via WebDAV | `curl` |
+| `list-serial` | List available serial ports with device, name and info to tell them apart | `udevadm`, `lsof` (optional) |
 
 ### System Administration
 | Command | Description | Dependencies |
